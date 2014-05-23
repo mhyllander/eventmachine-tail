@@ -87,6 +87,7 @@ class EventMachine::FileTail
     @symlink_stat = nil
     @watch = nil
     @closed = nil
+    @suspended = false
 
     @symlink_check_interval = 1
     @missing_file_check_interval = 1
@@ -166,6 +167,24 @@ class EventMachine::FileTail
     # do nothing, subclassers should implement this.
   end # def eof
 
+  public
+  def suspend
+    @suspended = true
+    @want_read = false
+    @read_timer.cancel if @read_timer
+  end
+
+  public
+  def resume
+    @suspended = false
+    schedule_next_read
+  end
+
+  public
+  def suspended?
+    @suspended
+  end
+
   # notify is invoked by EM::watch_file when the file you are tailing has been
   # modified or otherwise needs to be acted on.
   private
@@ -211,7 +230,7 @@ class EventMachine::FileTail
     @want_read = false
     EM.schedule do
       @watch.stop_watching if @watch
-      EventMachine::cancel_timer(@read_timer) if @read_timer
+      @read_timer.cancel if @read_timer
       @symlink_timer.cancel if @symlink_timer
       @missing_file_check_timer.cancel if @missing_file_check_timer
       @file.close if @file
@@ -261,9 +280,10 @@ class EventMachine::FileTail
 
   private
   def schedule_next_read
+    return if @suspended
     if !@want_read
       @want_read = true
-      @read_timer = EventMachine::add_timer(@naptime) do
+      @read_timer = EM::Timer.new(@naptime) do
         @want_read = false
         read
       end
