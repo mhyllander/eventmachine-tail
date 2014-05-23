@@ -10,7 +10,7 @@ EventMachine.kqueue = true if EventMachine.kqueue?
 #
 # Example
 #   class Tailer < EventMachine::FileTail
-#     def receive_data(data)
+#     def receive_data(data,fstat,fpos)
 #       puts "Got #{data.length} bytes"
 #     end
 #
@@ -85,6 +85,8 @@ class EventMachine::FileTail
     @read_timer = nil
     @symlink_target = nil
     @symlink_stat = nil
+    @watch = nil
+    @closed = nil
 
     @symlink_check_interval = 1
     @missing_file_check_interval = 1
@@ -130,13 +132,13 @@ class EventMachine::FileTail
   #       @buffer = BufferedTokenizer.new
   #     end
   #
-  #     def receive_data(data)
+  #     def receive_data(data,fstat,fpos)
   #       @buffer.extract(data).each do |line|
   #         # do something with 'line'
   #       end
   #     end
   public
-  def receive_data(data)
+  def receive_data(data,fstat,fpos)
     if @handler # FileTail.new called with a block
       @buffer.extract(data).each do |line|
         @handler.call(self, line)
@@ -275,6 +277,8 @@ class EventMachine::FileTail
 
     data = nil
     @logger.debug "#{self}: Reading..."
+    fstat = @file.stat
+    fpos = @file.pos
     begin
       data = @file.sysread(CHUNKSIZE)
     rescue EOFError, IOError
@@ -285,11 +289,11 @@ class EventMachine::FileTail
     data.force_encoding(@file.external_encoding) if FORCE_ENCODING
 
     # Won't get here if sysread throws EOF
-    @position += data.length
+    @position = @file.pos
     @naptime = 0
 
     # Subclasses should implement receive_data
-    receive_data(data)
+    receive_data(data,fstat,fpos)
     schedule_next_read
   end # def read
 
@@ -367,7 +371,7 @@ class EventMachine::FileTail
     if File.symlink?(@path)
       symlink_stat = File.lstat(@path) rescue nil
       symlink_target = File.readlink(@path) rescue nil
-    end
+     end
 
     if block_given?
       yield filestat, symlink_stat, symlink_target
