@@ -10,7 +10,7 @@ EventMachine.kqueue = true if EventMachine.kqueue?
 #
 # Example
 #   class Tailer < EventMachine::FileTail
-#     def receive_data(data,fstat,fpos)
+#     def receive_data(data)
 #       puts "Got #{data.length} bytes"
 #     end
 #
@@ -133,13 +133,13 @@ class EventMachine::FileTail
   #       @buffer = BufferedTokenizer.new
   #     end
   #
-  #     def receive_data(data,fstat,fpos)
+  #     def receive_data(data)
   #       @buffer.extract(data).each do |line|
   #         # do something with 'line'
   #       end
   #     end
   public
-  def receive_data(data,fstat,fpos)
+  def receive_data(data)
     if @handler # FileTail.new called with a block
       @buffer.extract(data).each do |line|
         @handler.call(self, line)
@@ -297,8 +297,6 @@ class EventMachine::FileTail
 
     data = nil
     @logger.debug "#{self}: Reading..."
-    fstat = @file.stat
-    fpos = @file.pos
     begin
       data = @file.sysread(CHUNKSIZE)
     rescue EOFError, IOError
@@ -313,7 +311,7 @@ class EventMachine::FileTail
     @naptime = 0
 
     # Subclasses should implement receive_data
-    receive_data(data,fstat,fpos)
+    receive_data(data)
     schedule_next_read
   end # def read
 
