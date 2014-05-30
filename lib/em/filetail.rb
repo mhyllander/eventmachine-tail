@@ -156,6 +156,17 @@ class EventMachine::FileTail
     raise exception
   end
 
+  # This method is called when a tailed file is re-opened.
+  #
+  # Implement this if you need to perform any actions when reading is
+  # starting from the beginning of a (new) file. The default BOF handler is
+  # to do nothing.
+  public
+  def bof
+    @logger.debug { 'BOF default handler' }
+    # do nothing, subclassers should implement this.
+  end # def eof
+
   # This method is called when a tailed file reaches EOF.
   #
   # If you want to stop reading this file, call close(), otherwise
@@ -163,10 +174,13 @@ class EventMachine::FileTail
   # EOF handler is to do nothing.
   public
   def eof
-    @logger.debug { 'EOF' }
+    @logger.debug { 'EOF default handler' }
     # do nothing, subclassers should implement this.
   end # def eof
 
+  # This method suspends reading from the file.
+  #
+  # Call this method if you are not currenbty able to process more input data.
   public
   def suspend
     @suspended = true
@@ -174,12 +188,16 @@ class EventMachine::FileTail
     @read_timer.cancel if @read_timer
   end
 
+  # This method resumes reading from the file.
+  #
+  # Call this method to resume reading and receiving data from the file.
   public
   def resume
     @suspended = false
     schedule_next_read
   end
 
+  # Returns true if reading is suspended.
   public
   def suspended?
     @suspended
@@ -218,8 +236,9 @@ class EventMachine::FileTail
     end
 
     @naptime = 0
-    @logger.debug { 'EOF' }
     @position = 0
+    @logger.debug { 'BOF' }
+    bof # Call our own bof event
     schedule_next_read
   end # def open
 
@@ -319,6 +338,7 @@ class EventMachine::FileTail
   private
   def schedule_eof
     if !@want_eof_handling
+      @logger.debug { 'EOF' }
       eof # Call our own eof event
       @want_eof_handling = true
       EventMachine::next_tick do
@@ -426,6 +446,8 @@ class EventMachine::FileTail
       # If the file size shrank, assume truncation and seek to the beginning.
       @logger.info("File likely truncated... #{path}")
       @position = @file.sysseek(0, IO::SEEK_SET)
+      @logger.debug { 'BOF' }
+      bof # Call our own bof event
       schedule_next_read
     end
   end # def handle_fstat
