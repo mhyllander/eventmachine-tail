@@ -117,6 +117,8 @@ class EventMachine::FileTail
         @position = @file.sysseek(startpos, IO::SEEK_SET)
         schedule_next_read
       end
+      @logger.debug { 'NEWPOS' }
+      newpos # Call our own newpos event
       watch
     end # EventMachine::next_tick
   end # def initialize
@@ -175,6 +177,17 @@ class EventMachine::FileTail
   public
   def eof
     @logger.debug { 'EOF default handler' }
+    # do nothing, subclassers should implement this.
+  end # def eof
+
+  # This method is called when the file read position is altered.
+  #
+  # Implement this if you need to perform any actions when reading is
+  # starting from a new position in the file. The default NEWPOS handler is
+  # to do nothing.
+  public
+  def newpos
+    @logger.debug { 'NEWPOS default handler' }
     # do nothing, subclassers should implement this.
   end # def eof
 
@@ -239,6 +252,8 @@ class EventMachine::FileTail
     @position = 0
     @logger.debug { 'BOF' }
     bof # Call our own bof event
+    @logger.debug { 'NEWPOS' }
+    newpos # Call our own newpos event
     schedule_next_read
   end # def open
 
@@ -448,6 +463,8 @@ class EventMachine::FileTail
       @position = @file.sysseek(0, IO::SEEK_SET)
       @logger.debug { 'BOF' }
       bof # Call our own bof event
+      @logger.debug { 'NEWPOS' }
+      newpos # Call our own newpos event
       schedule_next_read
     end
   end # def handle_fstat
